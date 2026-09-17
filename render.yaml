@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: xhs-note-clinic
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: BILLING_MODE
+        value: mock
+      - key: PRICE_FEN
+        value: "199"
