@@ -1,11 +1,9 @@
-# Netlify 部署配置：零依赖 Node ESM，无需构建步骤
 [build]
   publish = "public"
   functions = "netlify/functions"
 
 [functions]
   node_bundler = "esbuild"
-  node_version = "20"
 
 # 所有路径（含 /health、/api/...）都交给同一个函数处理
 [[redirects]]
