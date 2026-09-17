@@ -1,0 +1,8 @@
+# 运行数据与本地测试文件，不进入部署仓库
+data/
+*.log
+.env
+test-case.json
+test-compliance.mjs
+test-e2e.mjs
+node_modules/

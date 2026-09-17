@@ -1,0 +1,15 @@
+{
+  "name": "xhs-note-clinic-backend",
+  "version": "1.0.0",
+  "description": "小红书笔记发布前体检 Pay Skill 后端（支付宝 AI 按量付费 402 协议）",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs",
+    "dev": "node --watch server.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
