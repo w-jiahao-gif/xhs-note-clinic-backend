@@ -1,0 +1,523 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>小红书爆款笔记诊断 · AI 笔记医生</title>
+<meta name="description" content="粘贴小红书笔记标题和正文，从钩子强度、痛点关联、信息密度、CTA 四个维度打分，并给出可直接发布的爆款改写版。">
+<meta name="theme-color" content="#ff2e4d">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='24' fill='%23ff2e4d'/><text y='70' x='50' font-size='58' text-anchor='middle' fill='white'>诊</text></svg>">
+<style>
+  :root{
+    --red:#ff2e4d;
+    --red-dark:#e11d38;
+    --ink:#15161a;
+    --ink-2:#3d4149;
+    --muted:#8a909c;
+    --line:#eceef2;
+    --bg:#f5f6f8;
+    --radius:18px;
+    --shadow:0 10px 34px rgba(16,24,40,.08);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans SC",sans-serif;
+    color:var(--ink);
+    background:var(--bg);
+    background-image:
+      radial-gradient(900px 420px at 12% -8%, rgba(255,46,77,.13), transparent 60%),
+      radial-gradient(720px 380px at 108% 6%, rgba(70,120,255,.10), transparent 62%);
+    background-attachment:fixed;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.65;
+  }
+  a{color:inherit}
+  .wrap{max-width:700px;margin:0 auto;padding:0 16px 56px}
+
+  header.top{
+    position:sticky;top:0;z-index:20;
+    backdrop-filter:saturate(1.6) blur(14px);
+    -webkit-backdrop-filter:saturate(1.6) blur(14px);
+    background:rgba(255,255,255,.72);
+    border-bottom:1px solid rgba(0,0,0,.05);
+  }
+  .top-in{max-width:700px;margin:0 auto;padding:12px 16px;display:flex;align-items:center;gap:10px}
+  .mark{width:30px;height:30px;border-radius:9px;background:linear-gradient(145deg,#ff4d63,#e11d38);color:#fff;
+    display:grid;place-items:center;font-size:15px;font-weight:700;box-shadow:0 4px 12px rgba(255,46,77,.35);flex:none}
+  .brand{font-size:15px;font-weight:700;letter-spacing:.2px}
+  .brand span{color:var(--muted);font-weight:500;font-size:12px;margin-left:6px}
+  .badge{margin-left:auto;font-size:11px;color:var(--red);border:1px solid rgba(255,46,77,.3);
+    background:rgba(255,46,77,.07);padding:3px 9px;border-radius:999px;font-weight:600;white-space:nowrap}
+
+  .hero{padding:30px 2px 20px}
+  .hero h1{margin:0 0 10px;font-size:29px;line-height:1.3;letter-spacing:-.4px}
+  .hero h1 em{font-style:normal;background:linear-gradient(96deg,#ff2e4d,#ff7a45);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{margin:0;color:var(--ink-2);font-size:14.5px}
+  .chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:16px}
+  .chip{font-size:12px;color:var(--ink-2);background:#fff;border:1px solid var(--line);
+    padding:5px 11px;border-radius:999px;box-shadow:0 1px 2px rgba(16,24,40,.03)}
+
+  .card{background:#fff;border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);
+    padding:18px;margin-top:16px}
+  .card-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-bottom:10px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--red);flex:none}
+  textarea#note{
+    width:100%;min-height:186px;resize:vertical;border:1.5px solid var(--line);border-radius:14px;
+    padding:14px;font-size:14.5px;line-height:1.75;font-family:inherit;color:var(--ink);
+    background:#fbfbfc;outline:none;transition:border-color .18s,background .18s;
+  }
+  textarea#note::placeholder{color:#b3b8c2}
+  textarea#note:focus{border-color:rgba(255,46,77,.55);background:#fff;box-shadow:0 0 0 4px rgba(255,46,77,.08)}
+
+  .row{display:flex;align-items:center;gap:10px;margin-top:12px;flex-wrap:wrap}
+  .count{font-size:12px;color:var(--muted)}
+  .count.over{color:var(--red);font-weight:700}
+  .spacer{flex:1}
+  .btn{border:0;border-radius:12px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;
+    padding:11px 20px;transition:transform .12s,box-shadow .18s,opacity .18s}
+  .btn:active{transform:translateY(1px)}
+  .btn-primary{color:#fff;background:linear-gradient(135deg,#ff3a58,#e11d38);box-shadow:0 6px 18px rgba(255,46,77,.32)}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
+  .btn-ghost{color:var(--ink-2);background:#f2f3f5}
+  .btn-ghost:hover{background:#e9ebef}
+  .hint{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.6}
+
+  #result{display:none}
+  #result.on{display:block}
+  .verdict{font-size:15px;color:var(--ink-2);margin:14px 0 0;padding:12px 14px;border-radius:12px;
+    background:linear-gradient(100deg,rgba(255,46,77,.07),rgba(255,122,69,.05));border:1px solid rgba(255,46,77,.13)}
+  .verdict b{color:var(--ink)}
+
+  .score-head{display:flex;align-items:center;gap:18px}
+  .ring-box{position:relative;width:108px;height:108px;flex:none}
+  .ring{width:108px;height:108px;transform:rotate(-90deg)}
+  .ring circle{fill:none;stroke-width:9;stroke-linecap:round}
+  .ring .bg{stroke:#f0f1f4}
+  .ring .fg{stroke:var(--red);stroke-dasharray:326.7;stroke-dashoffset:326.7;transition:stroke-dashoffset 1s cubic-bezier(.22,1,.36,1),stroke .3s}
+  .ring-num{position:absolute;inset:0;display:grid;place-items:center;line-height:1}
+  .ring-num b{font-size:31px;font-weight:800;letter-spacing:-1px}
+  .ring-num i{font-style:normal;font-size:11px;color:var(--muted);display:block;text-align:center;margin-top:3px}
+  .score-meta{min-width:0}
+  .score-meta h2{margin:0 0 4px;font-size:17px}
+  .score-meta p{margin:0;font-size:13px;color:var(--muted)}
+
+  .dims{margin-top:16px;display:grid;gap:11px}
+  .dim{}
+  .dim-top{display:flex;justify-content:space-between;font-size:13px;font-weight:600;margin-bottom:5px}
+  .dim-top i{font-style:normal;color:var(--muted);font-weight:500}
+  .bar{height:7px;border-radius:99px;background:#f0f1f4;overflow:hidden}
+  .bar>i{display:block;height:100%;border-radius:99px;width:0;transition:width .9s cubic-bezier(.22,1,.36,1)}
+  .dim-note{font-size:12.5px;color:var(--ink-2);margin-top:6px}
+
+  .sec{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}
+  .sec:first-child{border-top:0;padding-top:0;margin-top:0}
+  .sec h3{margin:0 0 10px;font-size:14.5px;display:flex;align-items:center;gap:8px}
+  .sec h3::before{content:"";width:3px;height:14px;border-radius:2px;background:var(--red);flex:none}
+  .sec ul{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+  .sec li{position:relative;padding-left:20px;font-size:14px;color:var(--ink-2)}
+  .sec li::before{content:"";position:absolute;left:6px;top:9px;width:5px;height:5px;border-radius:50%;background:rgba(255,46,77,.55)}
+  .sec p{margin:0 0 8px;font-size:14px;color:var(--ink-2)}
+  .sec p:last-child{margin-bottom:0}
+  .rw{margin:0 0 12px;background:#fafbfc;border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+  .rw:last-child{margin-bottom:0}
+  .rw-k{display:inline-block;font-size:11.5px;font-weight:700;color:var(--red);background:rgba(255,46,77,.09);
+    border-radius:6px;padding:2px 8px;margin-bottom:7px}
+  .rw-v{font-size:14px;color:var(--ink);white-space:pre-wrap}
+  .cursor::after{content:"▍";color:var(--red);animation:blink 1s steps(2,start) infinite}
+  @keyframes blink{to{visibility:hidden}}
+
+  .actions{display:flex;gap:10px;margin-top:16px;flex-wrap:wrap}
+  .toast{position:fixed;left:50%;bottom:30px;transform:translate(-50%,14px);background:rgba(21,22,26,.94);color:#fff;
+    font-size:13px;padding:10px 18px;border-radius:999px;opacity:0;pointer-events:none;transition:opacity .22s,transform .22s;z-index:60}
+  .toast.on{opacity:1;transform:translate(-50%,0)}
+  .err{margin-top:12px;font-size:13.5px;color:#b91c1c;background:#fef2f2;border:1px solid #fee2e2;
+    border-radius:12px;padding:11px 13px}
+  footer{margin-top:30px;font-size:11.5px;color:var(--muted);text-align:center;line-height:1.8}
+  .skel{height:12px;border-radius:6px;background:linear-gradient(90deg,#f0f1f4,#e6e8ec,#f0f1f4);
+    background-size:200% 100%;animation:sk 1.2s linear infinite;margin:9px 0}
+  @keyframes sk{to{background-position:-200% 0}}
+  @media (max-width:420px){
+    .hero h1{font-size:24px}
+    .ring-box,.ring{width:92px;height:92px}
+    .ring-num b{font-size:26px}
+    .btn{padding:11px 16px}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-in">
+    <div class="mark">诊</div>
+    <div class="brand">笔记医生<span>小红书爆款笔记诊断</span></div>
+    <div class="badge">AI 实时诊断</div>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <section class="hero">
+    <h1>把笔记粘进来，<em>30 秒</em>拿到改写版</h1>
+    <p>四维打分 + 3 条具体修改建议 + 可直接发布的爆款改写稿。</p>
+    <div class="chips">
+      <span class="chip">钩子强度</span>
+      <span class="chip">痛点关联</span>
+      <span class="chip">信息密度</span>
+      <span class="chip">CTA 引导</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-label"><span class="dot"></span>粘贴你的笔记（标题 + 正文）</div>
+    <textarea id="note" placeholder="标题：我用这3个方法，30天瘦了15斤&#10;&#10;正文：姐妹们！今天来分享一下我的减肥经验……"></textarea>
+    <div class="row">
+      <span class="count" id="count">0 / 3000</span>
+      <span class="spacer"></span>
+      <button class="btn btn-ghost" id="demo" type="button">填入示例</button>
+      <button class="btn btn-primary" id="run" type="button">开始诊断</button>
+    </div>
+    <div class="hint">粘贴得越完整（含标题、正文、甚至话题标签），诊断越准。正文缺失时我也能只凭标题先给判断。</div>
+    <div id="error"></div>
+  </section>
+
+  <section class="card" id="result">
+    <div class="score-head">
+      <div class="ring-box">
+        <svg class="ring" viewBox="0 0 120 120" aria-hidden="true">
+          <circle class="bg" cx="60" cy="60" r="52"></circle>
+          <circle class="fg" id="ringFg" cx="60" cy="60" r="52"></circle>
+        </svg>
+        <div class="ring-num"><div><b id="scoreNum">--</b><i>总分 /100</i></div></div>
+      </div>
+      <div class="score-meta">
+        <h2 id="scoreTitle">诊断中…</h2>
+        <p id="scoreSub">正在逐字生成你的改写方案</p>
+      </div>
+    </div>
+
+    <div class="dims" id="dims"></div>
+
+    <div id="sections" style="margin-top:20px">
+      <div class="skel" style="width:82%"></div>
+      <div class="skel" style="width:64%"></div>
+      <div class="skel" style="width:74%"></div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" id="copyAll" type="button">复制诊断全文</button>
+      <button class="btn btn-ghost" id="copyRewrite" type="button">复制爆款改写版</button>
+      <button class="btn btn-primary" id="again" type="button">诊断下一篇</button>
+    </div>
+  </section>
+
+  <footer>
+    本页由 AI 生成内容建议，结果仅供参考，不承诺流量与涨粉效果。<br>
+    你的内容仅用于本次诊断，请勿粘贴含个人隐私的信息。
+  </footer>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function () {
+  var MAX = 3000;
+  var $ = function (s) { return document.querySelector(s); };
+  var noteEl = $("#note"), countEl = $("#count"), runEl = $("#run"), demoEl = $("#demo");
+  var errEl = $("#error"), resultEl = $("#result"), sectionsEl = $("#sections"), dimsEl = $("#dims");
+  var ringFg = $("#ringFg"), scoreNum = $("#scoreNum"), scoreTitle = $("#scoreTitle"), scoreSub = $("#scoreSub");
+  var CIRC = 326.7;
+  var raw = "", running = false, rafId = 0, lastRender = 0;
+
+  var DEMO = "标题：我用这3个方法，30天瘦了15斤\n\n正文：姐妹们！今天来分享一下我的减肥经验。首先就是控制饮食，少吃多动。然后要坚持运动，我每天都会跑步。最后就是要有毅力，不能半途而废。大家加油！\n\n#减肥 #瘦身";
+
+  var EXAMPLES = [
+    "标题：我用这3个方法，30天瘦了15斤\n\n正文：姐妹们！今天来分享一下我的减肥经验。首先就是控制饮食，少吃多动。然后要坚持运动，我每天都会跑步。最后就是要有毅力，不能半途而废。大家加油！",
+    "标题：这个护手霜真的绝了",
+    "标题：月薪5000怎么存下钱？我的真实记账表\n\n正文：工作三年，存款从0到8万。分享我的三个存钱习惯：第一，工资到手先转20%到单独账户；第二，把外卖换成自己做饭，一个月省600；第三，买东西前等48小时。希望对大家有参考。最后想问，你们有什么存钱小技巧？"
+  ];
+
+  function esc(s) {
+    return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+  function inline(s) {
+    var out = esc(s);
+    out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+    return out;
+  }
+  function toast(msg) {
+    var t = $("#toast");
+    t.textContent = msg;
+    t.classList.add("on");
+    clearTimeout(t._h);
+    t._h = setTimeout(function () { t.classList.remove("on"); }, 1800);
+  }
+  function colorFor(v) {
+    if (v === null || isNaN(v)) return "#ff2e4d";
+    if (v >= 80) return "#16a34a";
+    if (v >= 60) return "#f59e0b";
+    return "#ff2e4d";
+  }
+
+  function splitSections(text) {
+    var re = /\u3010([^\u3011]{1,24})\u3011/g, marks = [], m;
+    while ((m = re.exec(text)) !== null) marks.push({ t: m[1], start: m.index, end: re.lastIndex });
+    var out = [];
+    if (!marks.length) return [{ t: "", body: text }];
+    if (marks[0].start > 0) out.push({ t: "", body: text.slice(0, marks[0].start) });
+    for (var i = 0; i < marks.length; i++) {
+      var body = text.slice(marks[i].end, i + 1 < marks.length ? marks[i + 1].start : text.length);
+      out.push({ t: marks[i].t, body: body });
+    }
+    return out;
+  }
+
+  function renderBody(body) {
+    var lines = String(body).split(/\r?\n/), html = "", list = [], groups = [], cur = null;
+    function flushList() {
+      if (list.length) { html += "<ul>" + list.join("") + "</ul>"; list = []; }
+    }
+    function flushGroups() {
+      for (var i = 0; i < groups.length; i++) {
+        html += '<div class="rw"><span class="rw-k">' + esc(groups[i].k) + '</span><div class="rw-v">' + groups[i].v.join("\n") + "</div></div>";
+      }
+      groups = [];
+      cur = null;
+    }
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i].replace(/\s+$/, "");
+      var t = line.trim();
+      if (!t) { flushList(); if (cur) cur.v.push(""); continue; }
+      var kv = t.match(/^([\u4e00-\u9fa5A-Za-z]{2,4})\s*[:\uff1a]\s*([\s\S]*)$/);
+      if (kv && ["标题", "正文", "封面", "文案", "话题", "标签"].indexOf(kv[1]) >= 0) {
+        flushList();
+        cur = { k: kv[1], v: [inline(kv[2])] };
+        groups.push(cur);
+        continue;
+      }
+      if (cur) { cur.v.push(inline(t)); continue; }
+      if (/^[-\u2022\u00b7]\s+/.test(t)) { list.push("<li>" + inline(t.replace(/^[-\u2022\u00b7]\s+/, "")) + "</li>"); continue; }
+      if (/^\d{1,2}[.\u3001\uff09)]\s*/.test(t)) { list.push("<li>" + inline(t.replace(/^\d{1,2}[.\u3001\uff09)]\s*/, "")) + "</li>"); continue; }
+      flushList();
+      html += "<p>" + inline(t) + "</p>";
+    }
+    flushList();
+    flushGroups();
+    return html;
+  }
+
+  function extractDims(body) {
+    var lines = String(body).split(/\r?\n/), out = [];
+    for (var i = 0; i < lines.length; i++) {
+      var m = lines[i].match(/^[-\u2022\u00b7]?\s*\*{0,2}([\u4e00-\u9fa5A-Za-z]{2,8})\*{0,2}\s*[:\uff1a]?\s*(\d{1,3})\s*\/\s*100\s*[:\uff1a]?\s*(.*)$/);
+      if (m) out.push({ name: m[1], score: Math.min(100, parseInt(m[2], 10)), note: m[3] });
+    }
+    return out.slice(0, 6);
+  }
+
+  function render() {
+    var text = raw;
+    var score = null, verdict = "", dims = [], blocks = [];
+    var secs = splitSections(text);
+    for (var i = 0; i < secs.length; i++) {
+      var s = secs[i], t = s.t || "";
+      if (t.indexOf("\u603b\u5206") >= 0) {
+        var mm = s.body.match(/(\d{1,3})/);
+        if (mm) score = Math.min(100, parseInt(mm[1], 10));
+        continue;
+      }
+      if (t.indexOf("\u4e00\u53e5\u8bdd\u5224\u65ad") >= 0 || t.indexOf("\u5224\u65ad") >= 0) {
+        verdict = s.body.trim().split(/\r?\n/)[0] || "";
+        continue;
+      }
+      if (t.indexOf("\u5206\u9879\u6253\u5206") >= 0 || t.indexOf("\u7ef4\u5ea6") >= 0) {
+        dims = dims.concat(extractDims(s.body));
+        continue;
+      }
+      blocks.push(s);
+    }
+    if (!dims.length) dims = extractDims(text).filter(function (d) { return d.name.indexOf("\u603b\u5206") < 0; });
+
+    if (score !== null) {
+      scoreNum.textContent = score;
+      ringFg.style.stroke = colorFor(score);
+      ringFg.style.strokeDashoffset = String(CIRC * (1 - score / 100));
+      scoreTitle.textContent = score >= 80 ? "\u57fa\u7840\u5f88\u597d\uff0c\u5fae\u8c03\u5c31\u80fd\u7206"
+        : score >= 60 ? "\u6709\u94a9\u5b50\uff0c\u4f46\u8fd8\u6b20\u706b\u5019"
+        : "\u8fd9\u7bc7\u57fa\u672c\u6ca1\u6709\u94a9\u5b50\uff0c\u9700\u8981\u91cd\u5199";
+      scoreSub.textContent = "\u56db\u7ef4\u8bca\u65ad\u5df2\u5b8c\u6210\uff0c\u6539\u5199\u7248\u5728\u4e0b\u65b9";
+    }
+    if (verdict) scoreTitle.setAttribute("data-verdict", verdict);
+
+    var vEl = document.querySelector(".verdict");
+    if (verdict) {
+      if (!vEl) {
+        vEl = document.createElement("div");
+        vEl.className = "verdict";
+        dimsEl.parentNode.insertBefore(vEl, dimsEl);
+      }
+      vEl.innerHTML = "<b>\u4e00\u53e5\u8bdd\u5224\u65ad\uff1a</b>" + inline(verdict);
+    }
+
+    if (dims.length && dimsEl.getAttribute("data-sig") !== JSON.stringify(dims)) {
+      dimsEl.setAttribute("data-sig", JSON.stringify(dims));
+      dimsEl.innerHTML = dims.map(function (d) {
+        var c = colorFor(d.score);
+        return '<div class="dim"><div class="dim-top"><span>' + esc(d.name) + '</span><i style="color:' + c + '">' + d.score + '/100</i></div>'
+          + '<div class="bar"><i style="width:' + d.score + '%;background:' + c + '"></i></div>'
+          + (d.note ? '<div class="dim-note">' + inline(d.note) + "</div>" : "") + "</div>";
+      }).join("");
+    }
+
+    if (blocks.length) {
+      sectionsEl.innerHTML = blocks.map(function (b) {
+        return '<div class="sec">' + (b.t ? "<h3>" + esc(b.t) + "</h3>" : "") + renderBody(b.body) + "</div>";
+      }).join("");
+    } else if (text && !score && !dims.length) {
+      sectionsEl.innerHTML = '<div class="sec"><p class="cursor">' + inline(text) + "</p></div>";
+    }
+  }
+
+  function scheduleRender() {
+    var now = performance.now();
+    if (now - lastRender < 80) {
+      if (!rafId) rafId = requestAnimationFrame(function () { rafId = 0; lastRender = performance.now(); render(); });
+      return;
+    }
+    lastRender = now;
+    render();
+  }
+
+  function setRunning(v) {
+    running = v;
+    runEl.disabled = v;
+    runEl.textContent = v ? "\u8bca\u65ad\u4e2d\u2026" : "\u5f00\u59cb\u8bca\u65ad";
+  }
+
+  function syncCount() {
+    var n = noteEl.value.length;
+    countEl.textContent = n + " / " + MAX;
+    countEl.className = "count" + (n > MAX ? " over" : "");
+  }
+
+  noteEl.addEventListener("input", syncCount);
+
+  demoEl.addEventListener("click", function () {
+    if (running) return;
+    noteEl.value = EXAMPLES[Math.floor(Math.random() * EXAMPLES.length)];
+    syncCount();
+    noteEl.focus();
+  });
+
+  async function run() {
+    if (running) return;
+    var note = noteEl.value.trim();
+    errEl.innerHTML = "";
+    if (!note) { errEl.innerHTML = '<div class="err">\u8bf7\u5148\u7c98\u8d34\u9700\u8981\u8bca\u65ad\u7684\u7b14\u8bb0\u5185\u5bb9</div>'; noteEl.focus(); return; }
+    if (note.length > MAX) { errEl.innerHTML = '<div class="err">\u5185\u5bb9\u8fc7\u957f\uff0c\u8bf7\u63a7\u5236\u5728 ' + MAX + ' \u5b57\u4ee5\u5185</div>'; return; }
+
+    raw = "";
+    var old = document.querySelector(".verdict");
+    if (old) old.remove();
+    dimsEl.innerHTML = "";
+    dimsEl.removeAttribute("data-sig");
+    sectionsEl.innerHTML = '<div class="skel" style="width:82%"></div><div class="skel" style="width:64%"></div><div class="skel" style="width:74%"></div>';
+    scoreNum.textContent = "--";
+    ringFg.style.stroke = "#ff2e4d";
+    ringFg.style.strokeDashoffset = String(CIRC);
+    scoreTitle.textContent = "\u8bca\u65ad\u4e2d\u2026";
+    scoreSub.textContent = "\u6b63\u5728\u9010\u5b57\u751f\u6210\u4f60\u7684\u6539\u5199\u65b9\u6848";
+    resultEl.classList.add("on");
+    setRunning(true);
+    resultEl.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    try {
+      var apiBase = (/(^|\.)fcapp\.run$/i.test(location.hostname) || location.hostname === "localhost" || location.hostname === "127.0.0.1") ? "" : "https://xhs-note-doctor-qylvzwcdxf.cn-hangzhou.fcapp.run";
+      var res = await fetch(apiBase + "/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ note: note })
+      });
+      if (!res.ok) {
+        var e = await res.json().catch(function () { return {}; });
+        throw new Error(e.error || ("\u8bf7\u6c42\u5931\u8d25\uff08HTTP " + res.status + "\uff09"));
+      }
+      var reader = res.body.getReader(), decoder = new TextDecoder(), buf = "";
+      for (;;) {
+        var chunk = await reader.read();
+        if (chunk.done) break;
+        buf += decoder.decode(chunk.value, { stream: true });
+        var parts = buf.split("\n");
+        buf = parts.pop();
+        for (var i = 0; i < parts.length; i++) {
+          var line = parts[i].trim();
+          if (line.indexOf("data:") !== 0) continue;
+          var data = line.slice(5).trim();
+          if (!data || data === "[DONE]") continue;
+          var json;
+          try { json = JSON.parse(data); } catch (err) { continue; }
+          var delta = json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content;
+          if (delta) { raw += delta; scheduleRender(); }
+        }
+      }
+      if (!raw) throw new Error("\u6ca1\u6536\u5230\u5185\u5bb9\uff0c\u8bf7\u91cd\u8bd5");
+      render();
+    } catch (err) {
+      errEl.innerHTML = '<div class="err">' + esc(err.message || String(err)) + "</div>";
+      if (!raw) {
+        scoreTitle.textContent = "\u8bca\u65ad\u672a\u5b8c\u6210";
+        scoreSub.textContent = "\u8bf7\u770b\u4e0b\u65b9\u9519\u8bef\u63d0\u793a";
+        sectionsEl.innerHTML = "";
+      }
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  runEl.addEventListener("click", run);
+  $("#again").addEventListener("click", function () {
+    if (running) return;
+    noteEl.value = "";
+    syncCount();
+    resultEl.classList.remove("on");
+    errEl.innerHTML = "";
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    noteEl.focus();
+  });
+
+  function copy(text, label) {
+    if (!text) { toast("\u6682\u65e0\u5185\u5bb9\u53ef\u590d\u5236"); return; }
+    var done = function () { toast(label + " \u5df2\u590d\u5236"); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
+    } else { fallback(text, done); }
+  }
+  function fallback(text, done) {
+    var ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    try { document.execCommand("copy"); done(); } catch (err) { toast("\u590d\u5236\u5931\u8d25\uff0c\u8bf7\u624b\u52a8\u9009\u4e2d"); }
+    document.body.removeChild(ta);
+  }
+
+  $("#copyAll").addEventListener("click", function () { copy(raw, "\u8bca\u65ad\u5168\u6587"); });
+  $("#copyRewrite").addEventListener("click", function () {
+    var secs = splitSections(raw);
+    for (var i = 0; i < secs.length; i++) {
+      if (secs[i].t.indexOf("\u6539\u5199") >= 0) { copy(secs[i].body.trim(), "\u7206\u6b3e\u6539\u5199\u7248"); return; }
+    }
+    copy(raw, "\u8bca\u65ad\u5168\u6587");
+  });
+
+  noteEl.addEventListener("keydown", function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter") { e.preventDefault(); run(); }
+  });
+
+  syncCount();
+})();
+</script>
+</body>
+</html>
